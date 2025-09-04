@@ -1,0 +1,234 @@
+---
+title: "H1N1_2"
+author: "AYA"
+date: "2025-03-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# CLEAR THE ENVIRONMENT
+```{r}
+rm(list  =ls())
+```
+
+# LOAD THE NECESSARY LIBRARIES
+```{r}
+library(mlbench)
+library(caret)
+install.packages("caTools")
+library(caTools)
+install.packages("ranger")
+library(ranger)
+library(dplyr)
+install.packages("doParallel")
+library(doParallel)
+```
+
+# LOAD THE DATASET
+```{r}
+#load the training features
+training_features <- read.csv("training_set_features.csv", row.names = 1, header = T, stringsAsFactors = T)
+#View(training_features)
+```
+
+```{r}
+#load the validation labels
+training_labels <- read.csv("training_set_labels.csv", row.names = 1, header = T, stringsAsFactors = T)
+View(training_labels)
+```
+
+```{r}
+#combining labels
+h1n1 <- cbind(training_features, training_labels[1:2])
+```
+
+```{r}
+View(h1n1)
+```
+
+# DATA CLEANING
+```{r}
+#sum of all NA values in each dataset
+colSums(is.na(h1n1))
+```
+health insurance has the largest NA values 12274. Filling up thr data might cause inaccuracies so we will drop the column "health_insurance".
+```{r}
+#removing "health_insurance" column from the dataset
+h1n1$health_insurance <- NULL
+
+#also dropping "hhs_goe_region", "employment_industry" and "employment_occupation"
+h1n1$hhs_geo_region <- NULL
+h1n1$employment_industry <- NULL
+h1n1$employment_occupation <- NULL
+
+#View(h1n1)
+```
+
+```{r}
+#dropping all NA values in the dataset
+h1n1 <- na.omit(h1n1)
+
+#checking the dimension of NA after dropping all the values
+dim(h1n1)
+```
+From 26707 entries, we now have a total of 22976(a difference of 3731).
+
+# CONVERTING NOMINAL DATA INTO NUMERIC DATA
+
+```{r}
+#duplicating dataset
+h1n1_2 <- h1n1
+
+h1n1_2[,32:33] <- NULL
+#View(h1n1_2)
+```
+
+```{r}
+#binarising the nominal attributes
+binary_data <- dummyVars(~., data = h1n1_2)
+
+#View(binary_data)
+
+#adding the conversion to the data
+new_data <- predict(binary_data, newdata = h1n1_2)
+```
+
+# TRAINING H1N1_VACCINE ALONE
+```{r}
+#adding "h1n1_vaccine class" back to original dataset
+new_data2 <- cbind(new_data, h1n1[32])
+```
+
+```{r}
+View(new_data2)
+```
+
+```{r}
+#converting 0 and 1 to "yes" and "no" for the decision class
+new_data2$h1n1_vaccine <- factor(new_data2$h1n1_vaccine, levels = c(0, 1), labels = c("no", "yes"))
+View(new_data2)
+```
+
+# DATA PREPROCESSING
+Not needed since we are using random forest to train the model. And random forest is sensitive to feature scaling (but can perform normalization).
+
+# SPLIT THE TRAINING DATASET INTO TRAINING AND VALIDATION DATASET
+```{r}
+#evaluation method (repeatedcv)
+set.seed(42)
+
+#splitting the data 80% training and 20% testing
+trainIndex <- createDataPartition(new_data2$h1n1_vaccine, p = 0.8, list = FALSE)
+trainData <- new_data2[trainIndex, ]
+testData <- new_data2[-trainIndex, ]
+```
+
+# TRAINING THE MODEL
+```{r}
+#ensuring reproducibility 
+set.seed(123)
+
+#applying training algorithms
+lg_model <- glm(h1n1_vaccine~., data = trainData, family = binomial)
+```
+
+```{r}
+summary(lg_model)
+```
+# VALIDATING THE MODEL
+```{r}
+#Predict on test data
+validations <- predict(lg_model, testData, type = "response")
+
+#validations
+```
+
+```{r}
+# Convert probabilities to binary predictions
+validated_labels <- ifelse(validations > 0.5, "yes", "no")
+
+# Print results
+#print(validated_labels)
+```
+```{r}
+# Ensure both predicted_labels and testData$h1n1_vaccine are factors with the same levels
+validated_labels <- factor(validated_labels, levels = c("no", "yes"))
+testData$h1n1_vaccine <- factor(testData$h1n1_vaccine, levels = c("no", "yes"))
+
+# Now, apply confusionMatrix
+confusionMatrix(validated_labels, testData$h1n1_vaccine)
+
+```
+The accuracy of the dataset is quite okay at 0.8263
+
+
+
+# TRAINING SEASONAL_VACCINE ALONE
+```{r}
+#adding "seasonal_vaccine class" back to original dataset
+new_data3 <- cbind(new_data, h1n1[33])
+```
+
+```{r}
+View(new_data3)
+```
+
+```{r}
+#converting 0 and 1 to "yes" and "no" for the decision class
+new_data3$seasonal_vaccine <- factor(new_data3$seasonal_vaccine, levels = c(0, 1), labels = c("no", "yes"))
+View(new_data3)
+```
+
+# DATA PREPROCESSING
+Not needed since we are using random forest to train the model. And random forest is sensitive to feature scaling (but can perform normalization).
+
+# SPLIT THE TRAINING DATASET INTO TRAINING AND VALIDATION DATASET
+```{r}
+#evaluation method (repeatedcv)
+set.seed(42)
+
+#splitting the data 80% training and 20% testing
+trainIndex <- createDataPartition(new_data3$seasonal_vaccine, p = 0.8, list = FALSE)
+trainData2 <- new_data3[trainIndex, ]
+testData2 <- new_data3[-trainIndex, ]
+```
+
+# TRAINING THE MODEL
+```{r}
+#ensuring reproducibility 
+set.seed(123)
+
+#applying training algorithms
+seasonal_lg_model <- glm(seasonal_vaccine~., data = trainData2, family = binomial)
+```
+
+```{r}
+summary(seasonal_lg_model)
+```
+# VALIDATING THE MODEL
+```{r}
+#Predict on test data
+validations2 <- predict(seasonal_lg_model, testData2, type = "response")
+
+#validations2
+```
+
+```{r}
+# Convert probabilities to binary predictions
+validated_labels2 <- ifelse(validations2 > 0.5, "yes", "no")
+
+# Print results
+#print(validated_labels2)
+```
+```{r}
+# Ensure both predicted_labels and testData$h1n1_vaccine are factors with the same levels
+validated_labels2 <- factor(validated_labels2, levels = c("no", "yes"))
+testData2$seasonal_vaccine <- factor(testData2$seasonal_vaccine, levels = c("no", "yes"))
+
+# Now, apply confusionMatrix
+confusionMatrix(validated_labels2, testData2$seasonal_vaccine)
+
+```
+The accuracy of the dataset is quite okay at 0.7822
